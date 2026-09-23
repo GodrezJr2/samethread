@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samethread"
+dynamic = ["version"]
+description = "Hop between coding agents, stay on the same thread: one chat history across Claude Code, OpenCode and Antigravity CLI."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "GodrezJr2" }]
+keywords = ["claude-code", "opencode", "antigravity", "agy", "ai-agents", "coding-agents", "session", "resume", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.scripts]
+hop = "samethread.cli:main"
+samethread = "samethread.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/GodrezJr2/samethread"
+Issues = "https://github.com/GodrezJr2/samethread/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "samethread.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
