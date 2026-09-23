@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/setup-3_commands-5EEAD4?style=for-the-badge" alt="Setup: 3 commands"></a>
-  <a href="#supported-agents"><img src="https://img.shields.io/badge/agents-Claude_Code_·_OpenCode_·_Antigravity-8AA4FF?style=for-the-badge" alt="Agents"></a>
+  <a href="#supported-agents"><img src="https://img.shields.io/badge/agents-9-8AA4FF?style=for-the-badge" alt="9 agents"></a>
   <a href="#how-it-works"><img src="https://img.shields.io/badge/resume-native,_not_a_summary-E8845C?style=for-the-badge" alt="Native resume"></a>
 </p>
 
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <b>Start a chat in Claude Code. Continue it in OpenCode. Pick it up in Antigravity.</b><br>
+  <b>Plan it in Claude Code. Grind it out in Codex or Qwen. Finish it in Kimi.</b><br>
   SameThread puts every conversation into every agent's own <code>/resume</code> list, full history included.
 </p>
 
@@ -24,13 +24,19 @@
 
 ## Why this exists
 
-I use Claude Code for the heavy reasoning and cheaper agents (OpenCode, Antigravity CLI) for the easy stuff. Every switch meant starting from zero. Each agent keeps its history in its own private format:
+I use Claude Code for the heavy reasoning and cheaper agents for the easy stuff. Every switch meant starting from zero, because each agent keeps its history in its own private format:
 
 | Agent | Where your chats live |
 |---|---|
 | Claude Code | JSONL files under `~/.claude/projects` |
 | OpenCode | a SQLite database, `opencode.db` |
+| Codex CLI | rollout JSONL files under `~/.codex/sessions` |
+| Gemini CLI | JSONL files under `~/.gemini/tmp`, keyed by a project registry |
+| Qwen Code | JSONL files under `~/.qwen/projects` |
+| Pi | a JSONL entry tree under `~/.pi/agent/sessions` |
+| Kimi Code | an event log plus `state.json` under `~/.kimi-code/sessions` |
 | Antigravity CLI | per-conversation protobuf databases |
+| MiniMax Code | a SQLite runtime database |
 
 None of them can see the others. So you re-explain the task, paste logs again, and lose the thread.
 
@@ -40,9 +46,9 @@ None of them can see the others. So you re-explain the task, paste logs again, a
   <img src="assets/pickers.svg" alt="The same chat appearing in Claude Code's /resume, OpenCode's sessions list and hop list" width="100%">
 </p>
 
-- **Real resume, not a summary.** The full conversation is written into the agent's own session store, so its native picker and `--resume` flags just work.
+- **Real resume, not a summary.** The full conversation is written into each agent's own session store, so its native picker and `--resume` flags just work.
 - **Automatic.** One hook per agent syncs in the background after every turn. Nothing to remember, nothing to run.
-- **Tagged.** `Auth refactor (Agy)` came from Antigravity. `Auth refactor (Agy+OpenCode)` went through both. Your own chats stay untagged.
+- **Tagged.** `Auth refactor (Agy)` came from Antigravity. `Auth refactor (Agy+Codex)` went through both. Your own chats stay untagged.
 - **Round-trips.** Continue a mirrored chat anywhere; the next sync carries the new turns to every other agent.
 - **Safe.** Originals are never modified. SameThread only rewrites the mirrors it created. `hop forget`, `hop clean` and `hop uninstall` undo everything.
 - **Tiny.** One Python package, standard library only.
@@ -51,37 +57,36 @@ None of them can see the others. So you re-explain the task, paste logs again, a
 
 ```bash
 pipx install git+https://github.com/GodrezJr2/samethread   # or: pip install git+https://github.com/GodrezJr2/samethread
-hop install                                                # hooks for Claude Code, OpenCode and Antigravity CLI
-hop sync                                                   # mirror existing chats once (about a minute)
+hop install                                                # hooks for every agent it finds
+hop sync                                                   # mirror existing chats once
 ```
 
-That's it. Keep working the way you do, and use each agent's own resume:
-
-```text
-claude  →  /resume          opencode  →  /sessions          hop list  →  every copy + the command to open it
-```
+That's it. Keep working the way you do, and use each agent's own resume. `hop agents` shows what was found; `hop list` shows every copy of a chat with the command to open it.
 
 ## Supported agents
 
-| Agent | Reads | Writes a native, resumable chat | Syncs automatically on | Open with |
+| Agent | Reads | Writes a native, resumable chat | Syncs automatically on | Verified |
 |---|:---:|---|---|---|
-| **Claude Code** | ✅ | ✅ JSONL session with a `/rename`-style title | `Stop` + `SessionEnd` hooks | `/resume`, `claude --resume <id>` |
-| **OpenCode** 1.x | ✅ | ✅ through OpenCode's own `opencode import` | plugin, on every `session.idle` | `/sessions`, `opencode -s <id>` |
-| **Antigravity CLI** (`agy`) | ✅ | ➖ no import API yet; `hop agy` seeds a new conversation with the transcript | `Stop` hook in `~/.gemini/config/hooks.json` | `agy --conversation <id>` |
-| Codex CLI, Gemini CLI, Cursor | 🔜 | 🔜 | | |
+| **Claude Code** | ✅ | ✅ JSONL session + `/rename`-style title | `Stop` + `SessionEnd` hooks | resume ✔ · hook ✔ |
+| **OpenCode** 1.x | ✅ | ✅ through OpenCode's own `opencode import` | plugin, every `session.idle` | resume ✔ · hook ✔ |
+| **Codex CLI** | ✅ | ✅ rollout file + `session_index` title | `notify` in `config.toml` | resume ✔ · hook ✔ |
+| **Qwen Code** | ✅ | ✅ JSONL session + `custom_title` | `Stop` hook | resume ✔ · title ✔ · hook ✔ |
+| **Pi** | ✅ | ✅ entry tree + `session_info` name | extension, every `agent_end` | resume ✔ · hook ✔ |
+| **Kimi Code** 2.x | ✅ | ✅ event log + custom title | `[[hooks]]` `Stop` in `config.toml` | resume ✔ · hook ✔ |
+| **Gemini CLI** | ✅ | ✅ in folders Gemini already knows | `AfterAgent` + `SessionEnd` hooks | listed with title ✔ |
+| **Antigravity CLI** (`agy`) | ✅ | ➖ no import API: `hop resume agy` seeds a new conversation | `Stop` hook | read ✔ · hook ✔ |
+| **MiniMax Code** | ✅ | ➖ `hop resume mmx` seeds a new session | none yet: picked up by any other agent's sync | read ✔ |
 
-Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32 and agy 1.2.9. The storage paths are the same on macOS and Linux, and CI runs the test suite on all three systems.
+"resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9 and MiniMax Code 0.5.2. Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    CC["Claude Code<br/><sub>JSONL</sub>"] -- read --> T(("thread<br/><sub>~/.hop/threads</sub>"))
-    OC["OpenCode<br/><sub>SQLite</sub>"] -- read --> T
-    AG["Antigravity CLI<br/><sub>transcript</sub>"] -- read --> T
-    T -- "mirror (Agy+OpenCode)" --> CC
-    T -- "mirror (Agy+Claude)" --> OC
-    T -. "hop agy (seeded)" .-> AG
+    A["Claude · OpenCode · Codex<br/>Qwen · Pi · Kimi · Gemini"] -- read --> T(("thread<br/><sub>~/.hop/threads</sub>"))
+    R["Antigravity · MiniMax"] -- read --> T
+    T -- "native mirror, tagged" --> A
+    T -. "hop resume (seeded)" .-> R
 ```
 
 1. **Every chat becomes a thread.** Each agent's transcript is read into a neutral format: user turns, assistant turns, tool calls and results.
@@ -89,6 +94,7 @@ flowchart LR
 3. **Continuing a mirror is detected by message IDs.** Anything new is appended to the thread, and every other copy is rewritten, so all of them catch up.
 4. **Nothing is ever lost.** If two copies are continued separately, the later one splits off as its own `[fork]` chat.
 5. **Only portable parts cross over.** Tool calls from other agents arrive as readable lines (`▸ Bash: npm test` / `⎿ 2 failing`). Hidden reasoning is dropped: it's signed per provider and can't be replayed to another model.
+6. **New agent installed? It gets your recent chats.** When a new agent shows up, the next sync backfills it.
 
 ## Commands
 
@@ -96,8 +102,8 @@ flowchart LR
 |---|---|
 | `hop sync` | Mirror new and changed chats. The hooks run this for you. |
 | `hop list [-a]` | Chats for this folder (or all folders), with the exact resume command for every copy. |
-| `hop resume cc\|oc [n]` | Open chat *n* from the list in Claude Code or OpenCode. |
-| `hop agy [n]` | Continue chat *n* in Antigravity CLI. New turns flow back to the other agents. |
+| `hop resume <agent> [n]` | Open chat *n* in any agent: `cc`, `oc`, `codex`, `gemini`, `qwen`, `pi`, `kimi`, `agy`, `mmx`. For Antigravity and MiniMax it seeds a new conversation, and its turns flow back to the others. |
+| `hop agents` | Which agents are installed, and how hop reaches each. |
 | `hop forget <n\|title>` | Delete a chat's mirrors and stop mirroring it. |
 | `hop install` / `hop uninstall` | Add or remove the hooks. `hop install` backs up every config file it touches first. |
 | `hop clean --yes` | Delete every mirror SameThread ever made and reset its state. |
@@ -108,7 +114,7 @@ flowchart LR
 
 | Key | Default | Meaning |
 |---|---|---|
-| `targets` | `["cc", "oc"]` | Agents to write mirrors into. |
+| `targets` | `"auto"` | Agents to write mirrors into. `auto` means every writable agent that is installed; or list them, e.g. `["cc", "codex"]`. |
 | `max_age_days` | `30` | Only chats active in this window are picked up. |
 | `cc_entrypoints` | `["cli"]` | Claude sessions to include (skips `claude -p` automation runs). |
 | `path_remap` | `{"C:\\Windows\\System32": "~"}` | Treat chats started in one folder as if they came from another. |
@@ -120,10 +126,11 @@ Logs go to `~/.hop/hop.log`.
 
 ## Honest limits
 
-- **Antigravity can't be written to.** Its conversations are protobuf the runtime owns, and there's no import command. `hop agy` is the workaround: it opens a new agy conversation that reads the transcript first.
+- **Two agents can't be written to.** Antigravity's conversations are runtime-owned protobuf, and MiniMax Code's store is a migration-managed database. For both, `hop resume` opens a new conversation that reads the transcript first.
 - **Mirrors are copies, not a live shared session.** If you continue the same chat in two agents at once, you get a fork, not a merge.
 - **Long chats get trimmed.** They start from the latest compaction summary if there is one, then keep the newest messages that fit in `max_chars`.
-- **OpenCode needs the folder to exist.** Chats from deleted folders are mirrored to Claude only.
+- **Some agents need a first run.** Gemini CLI mirrors go only into folders Gemini has already opened. Kimi mirrors copy the agent profile from your newest real Kimi session. OpenCode needs the chat's folder to still exist.
+- **Codex has one `notify` slot.** If you already use it, hop leaves it alone, and Codex chats sync whenever another agent does.
 - **These are private formats.** An agent update can break a reader. Check `~/.hop/hop.log` and open an issue.
 
 ## How it compares
@@ -131,21 +138,21 @@ Logs go to `~/.hop/hop.log`.
 | | **SameThread** | [casr](https://github.com/Dicklesworthstone/cross_agent_session_resumer) | [agent-session-resume](https://github.com/hacktivist123/agent-session-resume) |
 |---|:---:|:---:|:---:|
 | Chat shows up in the target's native `/resume` | ✅ | ✅ | ❌ handoff summary |
-| Writes into current OpenCode (1.x) | ✅ | ❌ read-only | ➖ |
+| Writes into current OpenCode (1.x) and Kimi Code | ✅ | ❌ | ➖ |
 | Automatic sync through hooks | ✅ | ❌ one-shot | ❌ one-shot |
 | Round-trips with source tags | ✅ | ❌ | ❌ |
-| Number of agents | 3 | 15+ | 6 |
+| Number of agents | 9 | 15+ | 6 |
 
-casr covers far more agents. Reach for it when you need a one-off conversion between, say, Codex and Cursor. SameThread is for people who switch between a few agents all day and want it to be invisible.
+casr covers more agents. Reach for it when you need a one-off conversion to something like Cursor or Aider. SameThread is for people who switch between agents all day and want it to be invisible.
 
 ## Roadmap
 
-- [ ] Codex CLI and Gemini CLI adapters
+- [ ] Cursor CLI and Crush adapters
 - [ ] `pipx install samethread` from PyPI
-- [ ] Real agy writes, if Antigravity ships an import API
+- [ ] Native Antigravity and MiniMax writes, if they ship import APIs
 - [ ] Optional merge of forks
 
-Adding an agent takes about 100 lines: a lister, a reader and, if the agent allows it, a writer. See the per-agent sections in [`src/samethread/cli.py`](src/samethread/cli.py). PRs welcome.
+Adding an agent is one file in [`src/samethread/agents/`](src/samethread/agents/): a lister, a reader and, if the agent allows it, a writer and a hook. PRs welcome.
 
 ## Development
 
