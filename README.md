@@ -79,7 +79,7 @@ That's it. Keep working the way you do, and use each agent's own resume. `hop ag
 | **Hermes Agent** | ✅ | ✅ SQLite `sessions`/`messages` + `hermes --resume` | none yet: picked up by any other agent's sync | resume ✔ |
 | **MiniMax Code** | ✅ | ➖ `hop resume mmx` seeds a new session | none yet: picked up by any other agent's sync | read ✔ |
 
-"resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9 and MiniMax Code 0.5.2. Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
+"resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9, MiniMax Code 0.5.2 and Hermes Agent (on macOS; a mirror was resumed in Hermes and it answered from the imported history). Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
 
 ## How it works
 

@@ -165,7 +165,7 @@ class Antigravity(unittest.TestCase):
             ('tool', '▸ run_command: npm test'), ('tool', '  ⎿ 1 failing')])
 
 
-HOP = os.path.join(TMP, '.hermes')
+HERMES_HOME_DIR = os.path.join(TMP, '.hermes')
 
 DDL = """
 CREATE TABLE sessions (
@@ -189,14 +189,21 @@ class HermesStore(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        os.makedirs(HOP, exist_ok=True)
-        c = sqlite3.connect(os.path.join(HOP, 'state.db'))
+        os.makedirs(HERMES_HOME_DIR, exist_ok=True)
+        c = sqlite3.connect(os.path.join(HERMES_HOME_DIR, 'state.db'))
         c.executescript(DDL)
         c.commit()
         c.close()
 
     def conn(self):
-        return sqlite3.connect(os.path.join(HOP, 'state.db'))
+        return sqlite3.connect(os.path.join(HERMES_HOME_DIR, 'state.db'))
+
+    def setUp(self):
+        # Every test starts from an empty store: no test may depend on another having run first.
+        c = self.conn()
+        c.executescript('delete from messages; delete from sessions;')
+        c.commit()
+        c.close()
 
     def test_mirror_roundtrips_and_collides_on_title(self):
         agent, th = AGENTS['hermes'], thread([e('1', 'user', 'remember MANGO'), e('2', 'assistant', 'stored')])
@@ -240,10 +247,39 @@ class HermesStore(unittest.TestCase):
     def test_reads_a_wal_store_without_sidecars(self):
         """Hermes exits cleanly, leaving a WAL-mode db with no -wal/-shm; list() must still open it."""
         c = self.conn()
+        c.execute("insert into sessions (id, source, started_at, title, cwd) values ('wal1','cli',1.0,'W','/tmp')")
+        c.execute("insert into messages (session_id, role, content, timestamp) values ('wal1','user','hi',2.0)")
+        c.commit()
         c.execute('PRAGMA journal_mode=WAL')
         c.close()  # sidecars are removed on close
-        self.assertFalse(os.path.exists(os.path.join(HOP, 'state.db-wal')))
-        self.assertIn('hermes:real1', AGENTS['hermes'].list(CFG))
+        self.assertFalse(os.path.exists(os.path.join(HERMES_HOME_DIR, 'state.db-wal')))
+        self.assertIn('hermes:wal1', AGENTS['hermes'].list(CFG))
+
+    def test_missing_store_raises_hop_error(self):
+        """Hermes installed but never run: a HopError, not a raw OperationalError, so sync stops retrying."""
+        db = os.path.join(HERMES_HOME_DIR, 'state.db')
+        os.rename(db, db + '.away')  # keep the store for later tests
+        try:
+            with self.assertRaises(core.HopError):
+                AGENTS['hermes'].write(None, os.getcwd(), sync.render(thread([e('1', 'user', 'x')]), CFG),
+                                       'T', {'cfg': CFG})
+            AGENTS['hermes'].delete({'id': 'whatever'})  # must be a no-op, not a crash
+            self.assertEqual(AGENTS['hermes'].list(CFG), {})
+        finally:
+            os.rename(db + '.away', db)
+
+    def test_title_collision_gets_a_suffix_not_a_blank(self):
+        """Hermes requires unique titles; a second mirror must keep a title (suffixed), never go untitled."""
+        agent, th = AGENTS['hermes'], thread([e('1', 'user', 'a'), e('2', 'assistant', 'b')])
+        msgs, title = sync.render(th, CFG), 'Greeting (OpenCode)'
+        res = agent.write(None, os.getcwd(), msgs, title, {'cfg': CFG})
+        res2 = agent.write(None, os.getcwd(), msgs, title, {'cfg': CFG})
+        c = self.conn()
+        t1 = c.execute('select title from sessions where id=?', (res['id'],)).fetchone()[0]
+        t2 = c.execute('select title from sessions where id=?', (res2['id'],)).fetchone()[0]
+        c.close()
+        self.assertEqual(t1, title)
+        self.assertTrue(t2 and t2.startswith(title) and t2 != title, t2)
 
 
 class KimiIndex(unittest.TestCase):
