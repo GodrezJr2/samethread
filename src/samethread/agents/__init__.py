@@ -3,13 +3,15 @@ from .antigravity import Antigravity
 from .claude import Claude
 from .codex import Codex
 from .gemini import Gemini
+from .hermes import Hermes
 from .kimi import Kimi
 from .minimax import MiniMax
 from .opencode import OpenCode
 from .pi import Pi
 from .qwen import Qwen
 
-AGENTS = {a.key: a for a in (Claude(), OpenCode(), Antigravity(), Codex(), Gemini(), Qwen(), Pi(), Kimi(), MiniMax())}
+AGENTS = {a.key: a for a in (Claude(), OpenCode(), Hermes(), Antigravity(), Codex(), Gemini(), Qwen(), Pi(), Kimi(),
+                             MiniMax())}
 NAMES = {k: a.name for k, a in AGENTS.items()}
 
 
