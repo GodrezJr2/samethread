@@ -74,7 +74,7 @@ That's it. Keep working the way you do, and use each agent's own resume. `hop ag
 | **Pi** | ✅ | ✅ entry tree + `session_info` name | extension, every `agent_end` | resume ✔ · hook ✔ |
 | **Kimi Code** 2.x | ✅ | ✅ event log + custom title | `[[hooks]]` `Stop` in `config.toml` | resume ✔ · hook ✔ |
 | **Gemini CLI** | ✅ | ✅ in folders Gemini already knows | `AfterAgent` + `SessionEnd` hooks | listed with title ✔ |
-| **Antigravity CLI** (`agy`) | ✅ | ✅ JSONL transcript + `"Other"`-tab summary row (no protobuf trajectory) | `Stop` hook | read ✔ · write ✔ · hook ✔ |
+| **Antigravity CLI** (`agy`) | ✅ | ➖ reads native `CLI` + `Other`; `hop resume agy` seeds into `Other` | `Stop` hook | read ✔ · resume ✔ · hook ✔ |
 | **MiniMax Code** | ✅ | ➖ `hop resume mmx` seeds a new session | none yet: picked up by any other agent's sync | read ✔ |
 
 "resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9 and MiniMax Code 0.5.2. Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
@@ -102,7 +102,7 @@ flowchart LR
 |---|---|
 | `hop sync` | Mirror new and changed chats. The hooks run this for you. |
 | `hop list [-a]` | Chats for this folder (or all folders), with the exact resume command for every copy. |
-| `hop resume <agent> [n]` | Open chat *n* in any agent: `cc`, `oc`, `codex`, `gemini`, `qwen`, `pi`, `kimi`, `agy`, `mmx`. For Antigravity and MiniMax it seeds a new conversation; `hop sync` also writes mirrors into Antigravity's `"Other"` tab. Turns flow back to the others. |
+| `hop resume <agent> [n]` | Open chat *n* in any agent: `cc`, `oc`, `codex`, `gemini`, `qwen`, `pi`, `kimi`, `agy`, `mmx`. Antigravity reads native `CLI` + `Other`; `hop resume agy` seeds a new `Other` conversation. MiniMax also seeds a new session. |
 | `hop agents` | Which agents are installed, and how hop reaches each. |
 | `hop forget <n\|title>` | Delete a chat's mirrors and stop mirroring it. |
 | `hop install` / `hop uninstall` | Add or remove the hooks. `hop install` backs up every config file it touches first. |
@@ -126,7 +126,7 @@ Logs go to `~/.hop/hop.log`.
 
 ## Honest limits
 
-- **MiniMax can't be written to.** MiniMax Code's store is a migration-managed database, so `hop resume mmx` opens a new session that reads the transcript first. Antigravity *is* written, but as a JSONL transcript + a summary row (readable, lands in the `"Other"` tab) — not agy's protobuf execution trajectory, so a mirror has no agy-native tool state.
+- **Two agents can't be written to.** Antigravity and MiniMax are read from their native stores; `hop resume agy` and `hop resume mmx` seed new conversations. Antigravity seeds into the native `Other` store with `--app_data_dir=antigravity`.
 - **Mirrors are copies, not a live shared session.** If you continue the same chat in two agents at once, you get a fork, not a merge.
 - **Long chats get trimmed.** They start from the latest compaction summary if there is one, then keep the newest messages that fit in `max_chars`.
 - **Some agents need a first run.** Gemini CLI mirrors go only into folders Gemini has already opened. Kimi mirrors copy the agent profile from your newest real Kimi session. OpenCode needs the chat's folder to still exist.
@@ -149,7 +149,7 @@ casr covers more agents. Reach for it when you need a one-off conversion to some
 
 - [ ] Cursor CLI and Crush adapters
 - [ ] `pipx install samethread` from PyPI
-- [ ] Native MiniMax writes, if it ships an import API (Antigravity's protobuf trajectory, so mirrors get real tool state)
+- [ ] Native MiniMax and Antigravity mirror writers, if their apps expose an import API
 - [ ] Optional merge of forks
 
 Adding an agent is one file in [`src/samethread/agents/`](src/samethread/agents/): a lister, a reader and, if the agent allows it, a writer and a hook. PRs welcome.

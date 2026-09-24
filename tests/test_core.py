@@ -1,7 +1,5 @@
 import json
 import os
-import shutil
-import sqlite3
 import tempfile
 import unittest
 
@@ -145,6 +143,25 @@ class RoundTrip(unittest.TestCase):
 
 
 class Antigravity(unittest.TestCase):
+    def test_resume_other_uses_ide_store(self):
+        import samethread.agents.antigravity as agy_mod
+        old = agy_mod.OTHER_ROOT
+        root = tempfile.mkdtemp(prefix='agy-other-')
+        try:
+            agy_mod.OTHER_ROOT = root
+            os.makedirs(os.path.join(root, 'conversations'))
+            open(os.path.join(root, 'conversations', 'other-id.pb'), 'wb').close()
+            self.assertEqual(AGENTS['agy'].resume_cmd('other-id'),
+                             ['agy', '--app_data_dir=antigravity', '--conversation', 'other-id'])
+        finally:
+            agy_mod.OTHER_ROOT = old
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_seed_targets_other_store(self):
+        self.assertEqual(AGENTS['agy'].seed_cmd('continue'),
+                         ['agy', '--app_data_dir=antigravity', '-i', 'continue'])
+
     def test_reads_transcript_steps(self):
         path = os.path.join(TMP, 'transcript_full.jsonl')
         steps = [
@@ -162,70 +179,6 @@ class Antigravity(unittest.TestCase):
         self.assertEqual([(x['role'], x['text']) for x in els], [
             ('user', 'fix the build'), ('assistant', 'Checking.'),
             ('tool', '▸ run_command: npm test'), ('tool', '  ⎿ 1 failing')])
-
-
-AGY_DDL = """CREATE TABLE IF NOT EXISTS `conversation_summaries` (`conversation_id` text,`title` text NOT NULL DEFAULT "",`preview` text NOT NULL DEFAULT "",`step_count` integer NOT NULL DEFAULT 0,`last_modified_time` datetime NOT NULL,`workspace_uris` text NOT NULL,`status` text NOT NULL DEFAULT "",`source` text NOT NULL DEFAULT "",`project_id` text NOT NULL DEFAULT "",`agent_name` text NOT NULL DEFAULT "",`parent_conversation_id` text NOT NULL DEFAULT "",`nesting_depth` integer NOT NULL DEFAULT 0,`battle_id` text NOT NULL DEFAULT "",`winning_conversation_id` text NOT NULL DEFAULT "",`not_fully_idle` numeric NOT NULL DEFAULT false,`killed` numeric NOT NULL DEFAULT false,`last_user_input_time` datetime NOT NULL,`last_user_input_step_index` integer NOT NULL DEFAULT -1,`app_data_dir` text NOT NULL DEFAULT "", raw_summary BLOB, group_id TEXT NOT NULL DEFAULT '',PRIMARY KEY (`conversation_id`))"""
-
-
-class AgyWrite(unittest.TestCase):
-    """A mirrored chat must land in agy's resume picker "Other" tab (not "CLI")."""
-
-    def setUp(self):
-        import samethread.agents.antigravity as agy_mod
-        self.mod, self._root = agy_mod, agy_mod.ROOT
-        self.root = agy_mod.ROOT = tempfile.mkdtemp(prefix='agy-sandbox-')
-        c = sqlite3.connect(os.path.join(self.root, 'conversation_summaries.db'))
-        c.executescript(AGY_DDL)
-        c.commit()
-        c.close()
-
-    def tearDown(self):
-        self.mod.ROOT = self._root
-        shutil.rmtree(self.root, ignore_errors=True)
-
-    def conn(self):
-        return sqlite3.connect(os.path.join(self.root, 'conversation_summaries.db'))
-
-    @staticmethod
-    def msgs():
-        return [{'role': 'user', 'text': 'hello world', 'ts': 1790000000000},
-                {'role': 'assistant', 'text': 'hi there', 'ts': 1790000001000}]
-
-    def test_write_roundtrips_and_lands_in_other_tab(self):
-        agent = AGENTS['agy']
-        res = agent.write(None, '/tmp/work', self.msgs(), 'My Chat', {'cfg': CFG})
-        cid = res['id']
-        els = agent.read({'path': res['path']}, CFG)  # write -> read round-trip
-        self.assertEqual([(e['role'], e['text']) for e in els],
-                         [('user', 'hello world'), ('assistant', 'hi there')])
-        c = self.conn()
-        row = c.execute('select title, preview, step_count, app_data_dir, project_id, '
-                        'parent_conversation_id, nesting_depth, source from conversation_summaries '
-                        'where conversation_id=?', (cid,)).fetchone()
-        c.close()
-        title, preview, steps, app_dir, proj, parent, depth, src = row
-        self.assertEqual((title, preview, steps), ('My Chat', 'My Chat', 2))  # title==preview==label
-        self.assertNotEqual(app_dir, 'antigravity-cli')  # not the CLI tab -> "Other"
-        self.assertEqual((proj, parent, depth), ('', '', 0))
-        self.assertEqual(src, 'samethread')
-        self.assertTrue(agent.list(CFG)['agy:' + cid]['is_hop'])  # no re-import loop
-
-    def test_missing_store_raises_hop_error(self):
-        self.mod.ROOT = os.path.join(self.root, 'never-ran')
-        with self.assertRaises(core.HopError):
-            AGENTS['agy'].write(None, '/tmp', self.msgs(), 'X', {'cfg': CFG})
-
-    def test_delete_removes_transcript_and_row(self):
-        agent = AGENTS['agy']
-        res = agent.write(None, '/tmp', self.msgs(), 'Del', {'cfg': CFG})
-        cid = res['id']
-        self.assertTrue(os.path.exists(res['path']))
-        agent.delete({'id': cid})
-        self.assertFalse(os.path.exists(res['path']))
-        c = self.conn()
-        n = c.execute('select count(*) from conversation_summaries where conversation_id=?', (cid,)).fetchone()[0]
-        c.close()
-        self.assertEqual(n, 0)
 
 
 if __name__ == '__main__':
