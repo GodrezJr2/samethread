@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/setup-3_commands-5EEAD4?style=for-the-badge" alt="Setup: 3 commands"></a>
-  <a href="#supported-agents"><img src="https://img.shields.io/badge/agents-9-8AA4FF?style=for-the-badge" alt="9 agents"></a>
+  <a href="#supported-agents"><img src="https://img.shields.io/badge/agents-10-8AA4FF?style=for-the-badge" alt="10 agents"></a>
   <a href="#how-it-works"><img src="https://img.shields.io/badge/resume-native,_not_a_summary-E8845C?style=for-the-badge" alt="Native resume"></a>
 </p>
 
@@ -31,6 +31,7 @@ I use Claude Code for the heavy reasoning and cheaper agents for the easy stuff.
 | Claude Code | JSONL files under `~/.claude/projects` |
 | OpenCode | a SQLite database, `opencode.db` |
 | Codex CLI | rollout JSONL files under `~/.codex/sessions` |
+| Hermes Agent | a SQLite `state.db` under `$HERMES_HOME` (default `~/.hermes`) |
 | Gemini CLI | JSONL files under `~/.gemini/tmp`, keyed by a project registry |
 | Qwen Code | JSONL files under `~/.qwen/projects` |
 | Pi | a JSONL entry tree under `~/.pi/agent/sessions` |
@@ -75,9 +76,10 @@ That's it. Keep working the way you do, and use each agent's own resume. `hop ag
 | **Kimi Code** 2.x | ✅ | ✅ event log + custom title | `[[hooks]]` `Stop` in `config.toml` | resume ✔ · hook ✔ |
 | **Gemini CLI** | ✅ | ✅ in folders Gemini already knows | `AfterAgent` + `SessionEnd` hooks | listed with title ✔ |
 | **Antigravity CLI** (`agy`) | ✅ | ➖ reads native `CLI` + `Other`; `hop resume agy` seeds into `Other` | `Stop` hook | read ✔ · resume ✔ · hook ✔ |
+| **Hermes Agent** | ✅ | ✅ SQLite `sessions`/`messages` + `hermes --resume` | none yet: picked up by any other agent's sync | resume ✔ |
 | **MiniMax Code** | ✅ | ➖ `hop resume mmx` seeds a new session | none yet: picked up by any other agent's sync | read ✔ |
 
-"resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9 and MiniMax Code 0.5.2. Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
+"resume ✔" means a mirror written by SameThread was reopened with the agent's own resume command, and the model answered a question only the imported history could answer. Tested on Windows 11 with Claude Code 2.1.280, OpenCode 1.18.32, Codex 0.156.1, Qwen Code 0.24.4, Pi 0.87.1, Kimi Code 2.0.2, Gemini CLI 0.62 nightly, agy 1.2.9, MiniMax Code 0.5.2 and Hermes Agent (on macOS; a mirror was resumed in Hermes and it answered from the imported history). Storage paths are the same on macOS and Linux, and CI runs the tests on all three systems.
 
 ## How it works
 
@@ -141,7 +143,7 @@ Logs go to `~/.hop/hop.log`.
 | Writes into current OpenCode (1.x) and Kimi Code | ✅ | ❌ | ➖ |
 | Automatic sync through hooks | ✅ | ❌ one-shot | ❌ one-shot |
 | Round-trips with source tags | ✅ | ❌ | ❌ |
-| Number of agents | 9 | 15+ | 6 |
+| Number of agents | 10 | 15+ | 6 |
 
 casr covers more agents. Reach for it when you need a one-off conversion to something like Cursor or Aider. SameThread is for people who switch between agents all day and want it to be invisible.
 
