@@ -16,7 +16,7 @@ import sys
 
 from . import __version__
 from .agents import AGENTS, NAMES, resolve, targets
-from .core import (HANDOFF_DIR, INDEX_PATH, LOCK_PATH, THREAD_DIR, ago, load_config, now_ms, read_json, same_path,
+from .core import (HANDOFF_DIR, INDEX_PATH, LOCK_PATH, THREAD_DIR, ago, load_config, log, now_ms, read_json, same_path,
                    settings, write_json)
 from .sync import detach, locked_sync, render, tag, thread_title, wait_lock
 
@@ -110,7 +110,7 @@ def cmd_sync_agy(args):
             continue
         print(f'[{i}/{len(threads)}] {thread_title(th)}')
         if seed(AGENTS['agy'], th, cfg):
-            return
+            log(f'! could not seed {thread_title(th)} into agy; continuing')
 
 
 def choose(threads, query):

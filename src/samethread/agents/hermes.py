@@ -122,7 +122,10 @@ class Hermes(Agent):
                     self._session_row(c, cp, sid, cwd, title, first, last, len(msgs))
                 except sqlite3.IntegrityError:
                     # Hermes requires unique titles: a colliding mirror gets a short suffix, never a blank title.
-                    self._session_row(c, cp, sid, cwd, f'{title} · {sid[-6:]}', first, last, len(msgs))
+                    try:
+                        self._session_row(c, cp, sid, cwd, f'{title} · {sid[-6:]}', first, last, len(msgs))
+                    except sqlite3.IntegrityError as e:
+                        raise HopError('Hermes mirror session disappeared or could not be retitled') from e
                 c.executemany('insert into messages (session_id, role, content, timestamp) values (?,?,?,?)',
                               [(sid, m['role'], m['text'], m['ts'] / 1000) for m in msgs])
             seen = [str(i) for (i,) in c.execute('select id from messages where session_id=? order by id', (sid,))]
@@ -132,8 +135,10 @@ class Hermes(Agent):
 
     def _session_row(self, c, cp, sid, cwd, title, first, last, n):
         if cp:
-            c.execute('update sessions set title=?, started_at=?, last_activity_at=?, message_count=? where id=?',
-                      (title, first, last, n, sid))
+            updated = c.execute('update sessions set title=?, started_at=?, last_activity_at=?, message_count=? where id=?',
+                                (title, first, last, n, sid))
+            if updated.rowcount != 1:
+                raise HopError('Hermes mirror session disappeared')
         else:
             # model is left NULL on purpose: `hermes --resume` reuses the session's stored model, and a
             # placeholder like 'hop-import' is not a real provider model — it makes the mirror unresumable.

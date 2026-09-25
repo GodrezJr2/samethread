@@ -170,6 +170,18 @@ class Antigravity(unittest.TestCase):
         args = type('Args', (), {'dry_run': True})()
         cmd_sync_agy(args)
 
+    def test_sync_agy_continues_after_a_failed_seed(self):
+        from unittest.mock import patch
+        from samethread import cli
+
+        first = thread([e('1', 'user', 'first')])
+        second = thread([e('2', 'user', 'second')])
+        args = type('Args', (), {'dry_run': False})()
+        with patch.object(cli, 'all_threads', return_value=[first, second]), \
+             patch.object(cli, 'seed', side_effect=[1, 0]) as seed:
+            cli.cmd_sync_agy(args)
+        self.assertEqual(seed.call_count, 2)
+
     def test_resume_without_query_asks_for_a_chat(self):
         import io
         from unittest.mock import patch
@@ -287,6 +299,33 @@ class HermesStore(unittest.TestCase):
         # model must stay NULL: hermes --resume reuses the stored model, and a placeholder
         # ('hop-import') is not a provider model, which makes the mirror unresumable.
         self.assertEqual(prof, ('default', None, 'cli'))
+
+    def test_update_rewrites_the_same_mirror(self):
+        agent = AGENTS['hermes']
+        first = thread([e('1', 'user', 'old')])
+        res = agent.write(None, os.getcwd(), sync.render(first, CFG), 'Mirror', {'cfg': CFG})
+        cp = agent.list(CFG)['hermes:' + res['id']]
+        second = thread([e('2', 'user', 'new')])
+        updated = agent.write(cp, os.getcwd(), sync.render(second, CFG), 'Mirror', {'cfg': CFG})
+        self.assertEqual(updated['id'], res['id'])
+        text = [e['text'] for e in sync.load(agent.list(CFG)['hermes:' + res['id']], CFG)]
+        self.assertEqual(len(text), 1)
+        self.assertIn('new', text[0])
+        self.assertNotIn('old', text[0])
+
+    def test_vanished_mirror_raises_hop_error_without_retryable_raw_error(self):
+        agent = AGENTS['hermes']
+        res = agent.write(None, os.getcwd(), sync.render(thread([e('1', 'user', 'old')]), CFG),
+                          'Mirror', {'cfg': CFG})
+        c = self.conn()
+        c.execute('delete from messages where session_id=?', (res['id'],))
+        c.execute('delete from sessions where id=?', (res['id'],))
+        c.commit()
+        c.close()
+        cp = {'id': res['id']}
+        with self.assertRaises(core.HopError):
+            agent.write(cp, os.getcwd(), sync.render(thread([e('2', 'user', 'new')]), CFG),
+                        'Mirror', {'cfg': CFG})
 
     def test_reads_a_real_user_session(self):
         c = self.conn()
