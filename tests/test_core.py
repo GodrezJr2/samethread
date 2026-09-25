@@ -165,6 +165,49 @@ class Antigravity(unittest.TestCase):
         self.assertEqual(AGENTS['agy'].seed_cmd('continue'),
                          ['agy', '--app_data_dir=antigravity', '-i', 'continue'])
 
+    def test_sync_agy_dry_run(self):
+        from samethread.cli import cmd_sync_agy
+        args = type('Args', (), {'dry_run': True})()
+        cmd_sync_agy(args)
+
+    def test_resume_without_query_asks_for_a_chat(self):
+        import io
+        from unittest.mock import patch
+        from samethread import cli
+
+        first = thread([e('1', 'user', 'first')])
+        first['updated'] = 200
+        second = thread([e('2', 'user', 'second')])
+        second['updated'] = 100
+        second['base_title'] = 'Second chat'
+
+        class TTYInput(io.StringIO):
+            def isatty(self):
+                return True
+
+        args = type('Args', (), {'agent': 'agy', 'query': None, 'all': False})()
+        with patch.object(cli, 'scoped', return_value=[first, second]), \
+             patch.object(cli, 'seed') as seed, \
+             patch('sys.stdin', TTYInput('2\n')), \
+             self.assertRaises(SystemExit) as exit:
+            cli.cmd_resume(args)
+
+        self.assertIn('Second chat', str(exit.exception))
+        seed.assert_called_once()
+        self.assertEqual(seed.call_args.args[1]['base_title'], 'Second chat')
+
+    def test_resume_without_query_does_not_guess_when_not_interactive(self):
+        import io
+        from unittest.mock import patch
+        from samethread import cli
+
+        args = type('Args', (), {'agent': 'agy', 'query': None, 'all': False})()
+        with patch.object(cli, 'scoped', return_value=[thread([e('1', 'user', 'only')])]), \
+             patch.object(cli.sys, 'stdin', io.StringIO()), \
+             self.assertRaises(SystemExit) as exit:
+            cli.cmd_resume(args)
+        self.assertIn('Choose a chat explicitly', str(exit.exception))
+
     def test_reads_transcript_steps(self):
         path = os.path.join(TMP, 'transcript_full.jsonl')
         steps = [
