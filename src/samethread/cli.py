@@ -265,7 +265,7 @@ def main():
     p = sub.add_parser('agents', help='supported agents, which are installed, and how hop reaches them')
     p.set_defaults(fn=cmd_agents)
 
-    p = sub.add_parser('sync', help='mirror new and changed chats into every agent')
+    p = sub.add_parser('sync', aliases=['refresh'], help='mirror new and changed chats into every agent')
     p.add_argument('--days', type=int, help='only adopt chats active in the last N days (default: config)')
     p.add_argument('--dry-run', action='store_true')
     p.add_argument('--detach', action='store_true', help='run in the background and return immediately')

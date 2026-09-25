@@ -60,6 +60,7 @@ None of them can see the others. So you re-explain the task, paste logs again, a
 pipx install git+https://github.com/GodrezJr2/samethread   # or: pip install git+https://github.com/GodrezJr2/samethread
 hop install                                                # hooks for every agent it finds
 hop sync                                                   # mirror existing chats once
+hop refresh                                                 # same command, clearer when catching up manually
 ```
 
 That's it. Keep working the way you do, and use each agent's own resume. `hop agents` shows what was found; `hop list` shows every copy of a chat with the command to open it.
@@ -102,7 +103,7 @@ flowchart LR
 
 | Command | What it does |
 |---|---|
-| `hop sync` | Mirror new and changed chats. The hooks run this for you. |
+| `hop sync` / `hop refresh` | Mirror new and changed chats. The hooks run this for you. |
 | `hop list [-a]` | Chats for this folder (or all folders), with the exact resume command for every copy. |
 | `hop resume <agent> [n]` | Open chat *n* in any agent: `cc`, `oc`, `codex`, `gemini`, `qwen`, `pi`, `kimi`, `agy`, `mmx`. Antigravity reads native `CLI` + `Other`; `hop resume agy` seeds a new `Other` conversation. MiniMax also seeds a new session. |
 | `hop agents` | Which agents are installed, and how hop reaches each. |

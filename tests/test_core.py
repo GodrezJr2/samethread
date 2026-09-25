@@ -42,6 +42,16 @@ class Helpers(unittest.TestCase):
         self.assertEqual(core.fmt_call('Bash', {'command': 'ls -la', 'timeout': 5}, CFG), '▸ Bash: ls -la')
         self.assertEqual(core.fmt_call('shell', {'command': ['git', 'status']}, CFG), '▸ shell: git status')
 
+    def test_refresh_alias_runs_sync(self):
+        from unittest.mock import patch
+        from samethread import cli
+
+        with patch.object(cli.sys, 'argv', ['hop', 'refresh']), \
+             patch.object(cli.os, 'makedirs'), \
+             patch.object(cli, 'cmd_sync') as sync:
+            cli.main()
+        sync.assert_called_once()
+
     def test_agent_names_resolve(self):
         self.assertEqual(resolve('claude'), 'cc')
         self.assertEqual(resolve('MiniMax'), 'mmx')
