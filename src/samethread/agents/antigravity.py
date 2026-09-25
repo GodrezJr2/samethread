@@ -1,4 +1,4 @@
-"""Antigravity CLI (agy): read-only. Conversations are runtime-owned protobuf; hop reads the transcript log."""
+"""Antigravity CLI (agy): read native CLI/Other history; seed new Other conversations."""
 import json
 import os
 import re
@@ -10,8 +10,28 @@ from ..core import HOME, el, file_sig, fmt_call, fmt_result, iso_ms, read_jsonl,
 from .base import Agent
 
 ROOT = os.path.join(HOME, '.gemini', 'antigravity-cli')
+OTHER_ROOT = os.path.join(HOME, '.gemini', 'antigravity')
 HOOKS = os.path.join(HOME, '.gemini', 'config', 'hooks.json')
 HDR_RE = re.compile(r'^(Created At|Completed At):.*\n?', re.M)
+
+
+def db():
+    return os.path.join(ROOT, 'conversation_summaries.db')
+
+
+def connect():
+    path = db()
+    if not os.path.isfile(path):
+        return None
+    c = None
+    try:
+        c = sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=15)
+        c.execute('pragma schema_version')
+        return c
+    except sqlite3.OperationalError:
+        if c:
+            c.close()
+        return sqlite3.connect(path, timeout=15)
 
 
 def transcript(cid):
@@ -21,6 +41,11 @@ def transcript(cid):
         if os.path.exists(p):
             return p
     return None
+
+
+def other_trajectory(cid):
+    root = os.path.join(OTHER_ROOT, 'conversations')
+    return any(os.path.isfile(os.path.join(root, cid + suffix)) for suffix in ('.pb', '.db'))
 
 
 def uri_to_path(u):
@@ -37,10 +62,9 @@ class Antigravity(Agent):
         return os.path.isdir(ROOT) or super().detect()
 
     def list(self, cfg):
-        db = os.path.join(ROOT, 'conversation_summaries.db')
-        if not os.path.exists(db):
+        c = connect()
+        if not c:
             return {}
-        c = sqlite3.connect(f'file:{db}?mode=ro', uri=True, timeout=15)
         try:
             rows = c.execute('select conversation_id, title, last_modified_time, workspace_uris, '
                              'parent_conversation_id, nesting_depth from conversation_summaries').fetchall()
@@ -86,10 +110,11 @@ class Antigravity(Agent):
         return els
 
     def resume_cmd(self, sid):
-        return ['agy', '--conversation', sid]
+        root = '--app_data_dir=antigravity' if other_trajectory(sid) else None
+        return ['agy', *([root] if root else []), '--conversation', sid]
 
     def seed_cmd(self, prompt):
-        return ['agy', '-i', prompt]
+        return ['agy', '--app_data_dir=antigravity', '-i', prompt]
 
     def install(self, dry):
         hooks = hookkit.load(HOOKS)

@@ -16,7 +16,7 @@ import sys
 
 from . import __version__
 from .agents import AGENTS, NAMES, resolve, targets
-from .core import (HANDOFF_DIR, INDEX_PATH, LOCK_PATH, THREAD_DIR, ago, load_config, now_ms, read_json, same_path,
+from .core import (HANDOFF_DIR, INDEX_PATH, LOCK_PATH, THREAD_DIR, ago, load_config, log, now_ms, read_json, same_path,
                    settings, write_json)
 from .sync import detach, locked_sync, render, tag, thread_title, wait_lock
 
@@ -71,9 +71,8 @@ def cmd_list(args):
             print(f'       {NAMES.get(tool, tool):<9} {state:<8}{behind}  {shown(AGENTS[tool].resume_cmd(sid))}')
 
 
-def seed(agent, th):
-    """Continue a chat in an agent hop can't write into: a new conversation reads the transcript first."""
-    cfg = load_config()
+def handoff(agent, th, cfg):
+    """Write a source transcript and return the prompt used to seed an agent."""
     path = os.path.join(HANDOFF_DIR, th['tid'] + '.md')
     body = [f'# {thread_title(th)}\n']
     for m in render(th, cfg):
@@ -84,10 +83,62 @@ def seed(agent, th):
     pending = read_json(os.path.join(HANDOFF_DIR, 'pending.json'), {})
     pending[th['tid']] = now_ms() - 60000
     write_json(os.path.join(HANDOFF_DIR, 'pending.json'), pending)
-    prompt = (f'[hop-handoff:{th["tid"]}] We are continuing the conversation "{th["base_title"]}" that started in '
-              f'{tag(th)}. Read the whole transcript at {path} with your file tool (all of it, page through if long). '
-              f'Then reply with one short line saying you are ready, and wait for me.')
-    launch(agent.seed_cmd(prompt), th['cwd'])
+    return (f'[hop-handoff:{th["tid"]}] We are continuing the conversation "{th["base_title"]}" that started in '
+            f'{tag(th)}. Read the whole transcript at {path} with your file tool (all of it, page through if long). '
+            'Then reply with one short line saying you are ready, and wait for me.')
+
+
+def run(cmd, cwd):
+    exe = shutil.which(cmd[0]) or cmd[0]
+    return subprocess.call([exe] + cmd[1:], cwd=cwd if cwd and os.path.isdir(cwd) else None)
+
+
+def seed(agent, th, cfg=None):
+    """Continue a chat in an agent hop can't write into: a new conversation reads the transcript first."""
+    return run(agent.seed_cmd(handoff(agent, th, cfg or load_config())), th['cwd'])
+
+
+def cmd_sync_agy(args):
+    """Seed every known thread into agy's native Other store."""
+    cfg = load_config()
+    threads = all_threads()
+    if args.dry_run:
+        print(f'{len(threads)} threads would be seeded into agy Other')
+        return
+    for i, th in enumerate(threads, 1):
+        if any(k.startswith('agy:') for k in th.get('copies', {})):
+            continue
+        print(f'[{i}/{len(threads)}] {thread_title(th)}')
+        if seed(AGENTS['agy'], th, cfg):
+            log(f'! could not seed {thread_title(th)} into agy; continuing')
+
+
+def choose(threads, query):
+    if query is not None:
+        return pick(threads, query)
+    if not threads:
+        return None
+    if not sys.stdin.isatty():
+        sys.exit('Choose a chat explicitly when hop is not interactive: hop agy <number|title>')
+
+    print('Choose a chat to continue:')
+    for i, th in enumerate(threads, 1):
+        print(f'{i:>3}. {thread_title(th)}  ·  {ago(th["updated"])}  ·  {th["cwd"]}')
+    while True:
+        try:
+            query = input('Number or title (q to cancel): ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return None
+        if query.lower() in {'q', 'quit', 'exit'}:
+            return None
+        if not query:
+            print('Enter a number from the list or part of its title.')
+            continue
+        th = pick(threads, query)
+        if th:
+            return th
+        print('No matching chat. Try a number from the list or part of its title.')
 
 
 def cmd_resume(args):
@@ -96,7 +147,7 @@ def cmd_resume(args):
     except KeyError:
         sys.exit(f'Unknown agent "{args.agent}". Supported: {", ".join(AGENTS)}')
     agent = AGENTS[key]
-    th = pick(scoped(args), args.query)
+    th = choose(scoped(args), args.query)
     if not th:
         sys.exit('No matching chat. See: hop list')
     copies = [k for k in th['copies'] if k.startswith(key + ':')]
@@ -214,7 +265,7 @@ def main():
     p = sub.add_parser('agents', help='supported agents, which are installed, and how hop reaches them')
     p.set_defaults(fn=cmd_agents)
 
-    p = sub.add_parser('sync', help='mirror new and changed chats into every agent')
+    p = sub.add_parser('sync', aliases=['refresh'], help='mirror new and changed chats into every agent')
     p.add_argument('--days', type=int, help='only adopt chats active in the last N days (default: config)')
     p.add_argument('--dry-run', action='store_true')
     p.add_argument('--detach', action='store_true', help='run in the background and return immediately')
@@ -227,14 +278,18 @@ def main():
                           ('forget', cmd_forget, "delete a chat's mirrors and stop mirroring it")):
         p = sub.add_parser(name, help=hlp)
         if name == 'resume':
-            p.add_argument('agent', help='cc, oc, agy, codex, gemini, qwen, pi, kimi, mmx (or the full name)')
+            p.add_argument('agent', help='cc, oc, hermes, agy, codex, gemini, qwen, pi, kimi, mmx (or the full name)')
         if name == 'agy':
             p.set_defaults(agent='agy')
         if name != 'list':
-            p.add_argument('query', nargs='?', help='number from `hop list`, or part of the title')
+            p.add_argument('query', nargs='?', help='number from `hop list`, or part of the title; omit to choose interactively')
         p.add_argument('-a', '--all', action='store_true', help='all folders, not just the current one')
         p.add_argument('-n', '--limit', type=int, default=30)
         p.set_defaults(fn=fn)
+
+    p = sub.add_parser('sync-agy', help='seed every known thread into agy Other')
+    p.add_argument('--dry-run', action='store_true')
+    p.set_defaults(fn=cmd_sync_agy)
 
     p = sub.add_parser('hook', help='called by agent hooks; starts a background sync')
     p.add_argument('--json', action='store_true', help='print {} for hook protocols that need JSON (agy)')
